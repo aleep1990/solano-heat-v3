@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SOLANO HEAT — Port Solano</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1420; font-family: 'Segoe UI', Arial, sans-serif; color: #fff; }
+  #game-canvas, #game-canvas canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+  .panel { background: rgba(12, 12, 20, 0.78); border: 1px solid rgba(255, 255, 255, 0.14); border-radius: 8px; padding: 8px 10px; backdrop-filter: blur(2px); }
+  .panel h3 { font-size: 11px; letter-spacing: 1.5px; color: #ffb347; margin-bottom: 3px; }
+  #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; display: none; }
+  /* mission panel — top left */
+  #mission-panel { position: absolute; top: 12px; left: 12px; width: 300px; border-left: 4px solid #e86a1a; }
+  #mission-title { font-size: 15px; font-weight: 800; letter-spacing: 0.5px; }
+  #mission-stage { font-size: 11px; color: #ffb347; margin: 2px 0 4px; }
+  #mission-objective { font-size: 13px; line-height: 1.35; }
+  #mission-next { font-size: 11px; color: #9ad8ff; margin-top: 3px; }
+  /* police + district + minimap — top right */
+  #right-col { position: absolute; top: 12px; right: 12px; width: 250px; display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+  #police-panel.hot { border-color: #ff3b30; box-shadow: 0 0 12px rgba(255, 59, 48, 0.45); }
+  #police-header { font-size: 11px; letter-spacing: 1px; color: #ff6a5a; font-weight: 800; margin-bottom: 4px; }
+  .unit { display: flex; justify-content: space-between; font-size: 12px; padding: 1px 0; }
+  .unit-id { font-weight: 800; color: #fff; }
+  .unit-role { color: #ffb347; }
+  .unit-dist { color: #9ad8ff; }
+  #district-panel { display: flex; flex-direction: column; gap: 2px; }
+  #district-name { font-size: 14px; font-weight: 800; }
+  #district-mood { font-size: 11px; color: #cfe8a0; }
+  .bar { height: 6px; background: rgba(255,255,255,0.18); border-radius: 3px; overflow: hidden; }
+  .bar > div { height: 100%; background: linear-gradient(90deg, #e8a020, #7ba05b); }
+  #minimap-wrap { padding: 6px; display: flex; justify-content: center; }
+  #minimap { width: 160px; height: 160px; border-radius: 6px; border: 1px solid rgba(255,255,255,0.2); }
+  /* vitals + weapons + crew — bottom left */
+  #left-col { position: absolute; left: 12px; bottom: 12px; width: 320px; display: flex; flex-direction: column; gap: 8px; }
+  .vital { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; }
+  .vital .bar { flex: 1; height: 10px; }
+  #health-fill { background: linear-gradient(90deg, #37c24a, #7be88a); }
+  #armour-fill { background: linear-gradient(90deg, #3a6fd8, #7ba8f0); }
+  .vital span.num { width: 28px; text-align: right; }
+  #weapon-slots { display: flex; gap: 5px; }
+  .wslot { flex: 1; background: rgba(12,12,20,0.78); border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; padding: 5px 4px; text-align: center; }
+  .wslot.active { border-color: #e86a1a; background: rgba(232, 106, 26, 0.35); box-shadow: 0 0 8px rgba(232,106,26,0.5); }
+  .wslot .wkey { display: block; font-size: 9px; color: #ffb347; }
+  .wslot .wname { display: block; font-size: 10px; font-weight: 800; line-height: 1.2; }
+  .wslot .wammo { display: block; font-size: 11px; color: #9ad8ff; }
+  #crew-cards { display: flex; gap: 6px; }
+  .crew-card { flex: 1; background: rgba(12,12,20,0.78); border: 1px solid rgba(255,255,255,0.14); border-radius: 6px; padding: 5px; display: flex; gap: 6px; align-items: center; }
+  .crew-card.cooling { opacity: 0.65; }
+  .crew-face svg { border-radius: 6px; display: block; }
+  .crew-info { font-size: 10px; line-height: 1.3; }
+  .crew-info b { font-size: 12px; display: block; }
+  .crew-info .crew-ability { color: #ffb347; font-weight: 700; }
+  .crew-cd { margin-left: auto; font-size: 10px; font-weight: 800; color: #7be88a; }
+  /* rank / money / stars / speed — bottom right */
+  #right-bottom { position: absolute; right: 12px; bottom: 12px; width: 250px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; text-align: right; }
+  #wanted-stars { font-size: 20px; letter-spacing: 2px; color: rgba(255,255,255,0.25); }
+  #wanted-stars .star.lit { color: #ffb347; text-shadow: 0 0 8px rgba(255,179,71,0.8); }
+  #money-val { font-size: 22px; font-weight: 800; color: #7be88a; }
+  #rank-name { font-size: 12px; font-weight: 800; letter-spacing: 1px; }
+  #rank-label { font-size: 11px; color: #ffb347; }
+  #speed-box { display: flex; align-items: baseline; justify-content: flex-end; gap: 8px; }
+  #speed-val { font-size: 34px; font-weight: 800; line-height: 1; }
+  #speed-unit { font-size: 11px; color: #ccc; }
+  #car-name { font-size: 12px; font-weight: 800; }
+  #car-damage { font-size: 11px; color: #ff9a7a; }
+  #radio-line, #clock-line { font-size: 11px; color: #ddd; }
+  #radio-name { color: #ffb347; font-weight: 800; }
+  /* dialogue — bottom centre */
+  #dialogue-box { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); width: 440px; background: rgba(12,12,20,0.85); border: 1px solid rgba(255,179,71,0.5); border-radius: 8px; padding: 8px 12px; display: none; gap: 10px; align-items: center; }
+  #dialogue-portrait svg { border-radius: 6px; }
+  #dialogue-speaker { font-size: 12px; font-weight: 800; color: #ffb347; letter-spacing: 1px; }
+  #dialogue-line { font-size: 14px; line-height: 1.35; }
+  /* banners */
+  #air-banner { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); background: rgba(120,10,10,0.85); border: 1px solid #ff3b30; padding: 5px 14px; border-radius: 6px; font-size: 12px; font-weight: 800; letter-spacing: 2px; display: none; }
+  #race-banner { position: absolute; top: 52px; left: 50%; transform: translateX(-50%); background: rgba(12,12,20,0.85); border: 1px solid #e8a020; padding: 5px 14px; border-radius: 6px; font-size: 13px; font-weight: 800; display: none; }
+  #toast-line { position: absolute; bottom: 150px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #ffe9b0; text-shadow: 0 1px 3px #000; display: none; }
+  #controls-hint { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-size: 10px; color: rgba(255,255,255,0.55); text-shadow: 0 1px 2px #000; }
+  /* weapon wheel */
+  #wheel { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: none; gap: 8px; }
+  #wheel .wslot { width: 92px; padding: 10px 6px; }
+  /* overlays */
+  .overlay { position: fixed; inset: 0; z-index: 10; display: none; align-items: center; justify-content: center; flex-direction: column; text-align: center; background: linear-gradient(180deg, rgba(20,10,30,0.08), rgba(20,10,30,0.42)); }
+  .overlay h1 { font-size: 64px; letter-spacing: 6px; color: #ffb347; text-shadow: 0 4px 0 #7a2a00, 0 8px 24px rgba(0,0,0,0.8); }
+  .overlay h2 { font-size: 20px; letter-spacing: 8px; color: #fff; margin: 4px 0 14px; }
+  .overlay p { font-size: 14px; max-width: 560px; line-height: 1.5; color: #ffe9b0; }
+  .overlay .btn { pointer-events: auto; cursor: pointer; margin-top: 18px; padding: 12px 34px; font-size: 16px; font-weight: 800; letter-spacing: 2px; color: #fff; background: #e86a1a; border: none; border-radius: 8px; }
+  .overlay .btn.ghost { background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.4); }
+  .overlay .keys { margin-top: 20px; font-size: 12px; color: #ddd; line-height: 1.8; }
+  .overlay .keys b { color: #ffb347; }
+  #title-screen { display: flex; }
+  .feat { margin-top: 14px; font-size: 12px; color: #cfe8a0; letter-spacing: 1px; }
+  #busted-screen h1, #wasted-screen h1 { color: #ff3b30; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.min.js" } }
+</script>
+</head>
+<body>
+<div id="game-canvas"></div>
+
+<div id="hud">
+  <div id="mission-panel" class="panel">
+    <div id="mission-title">MISSION 1 · THE PICKUP</div>
+    <div id="mission-stage">STAGE 1/3</div>
+    <div id="mission-objective">Drive to the marina docks</div>
+    <div id="mission-next">NEXT: Collect the package</div>
+  </div>
+
+  <div id="right-col">
+    <div id="police-panel" class="panel">
+      <div id="police-header">KPD RESPONSE · STANDING BY</div>
+      <div id="police-units"></div>
+    </div>
+    <div id="district-panel" class="panel">
+      <div id="district-name">SOLANO STRAND</div>
+      <div id="district-mood">NEUTRAL · 61</div>
+      <div class="bar"><div id="district-bar" style="width:61%"></div></div>
+    </div>
+    <div id="minimap-wrap" class="panel"><canvas id="minimap" width="190" height="190"></canvas></div>
+  </div>
+
+  <div id="left-col">
+    <div class="panel">
+      <div class="vital"><span>HEALTH</span><div class="bar"><div id="health-fill" style="width:100%"></div></div><span class="num" id="health-num">100</span></div>
+      <div class="vital"><span>ARMOUR</span><div class="bar"><div id="armour-fill" style="width:100%"></div></div><span class="num" id="armour-num">100</span></div>
+    </div>
+    <div id="weapon-slots"></div>
+    <div id="crew-cards"></div>
+  </div>
+
+  <div id="right-bottom">
+    <div id="wanted-stars"></div>
+    <div id="money-val">$18,450</div>
+    <div class="panel">
+      <div id="rank-name">RANK · FIXER</div>
+      <div class="bar"><div id="rank-bar" style="width:65%"></div></div>
+      <div id="rank-label">3,900/5,200 RP</div>
+    </div>
+    <div class="panel">
+      <div id="speed-box"><span id="speed-val">0</span><span id="speed-unit">KM/H</span></div>
+      <div id="car-name">RUKAN PELO GT</div>
+      <div id="car-damage">0% DENTED</div>
+    </div>
+    <div class="panel">
+      <div id="radio-line">RADIO <span id="radio-name">OMBO 98.4</span> · <span id="radio-genre">Island Pop</span></div>
+      <div id="clock-line">PORT SOLANO · <span id="clock-time">16:00</span></div>
+    </div>
+  </div>
+
+  <div id="air-banner">▲ AIR UNIT DEPLOYED — CONDOR-1 ▲</div>
+  <div id="race-banner"></div>
+  <div id="toast-line"></div>
+
+  <div id="dialogue-box">
+    <div id="dialogue-portrait"></div>
+    <div><div id="dialogue-speaker">RICO</div><div id="dialogue-line"></div></div>
+  </div>
+
+  <div id="wheel"></div>
+  <div id="controls-hint">WASD drive / walk · E enter car · Q weapon wheel · 1-5 weapons · R radio · Z/H/C crew · L save · P pause</div>
+</div>
+
+<div id="title-screen" class="overlay">
+  <h1>SOLANO HEAT</h1>
+  <h2>PORT SOLANO</h2>
+  <p>One last job in the sun-soaked coastal city. Fifteen story missions, a five-star police
+  response with roadblocks and a helicopter, street races, a crew, a garage, respect ranks
+  and four radio stations — all at golden hour.</p>
+  <button class="btn" id="btn-new">NEW GAME</button>
+  <button class="btn ghost" id="btn-continue">CONTINUE</button>
+  <div class="feat">15 MISSIONS · 5 WEAPONS · 3 RACES · 4 RADIO STATIONS · GARAGE · CREW OF 3</div>
+  <div class="keys"><b>WASD</b> move / drive &nbsp; <b>E</b> enter &amp; steal cars &nbsp; <b>Mouse</b> aim &amp; shoot &nbsp; <b>Q</b> weapon wheel &nbsp; <b>1–5</b> weapons<br><b>R</b> radio &nbsp; <b>Z / H / C</b> crew abilities &nbsp; <b>Shift</b> sprint &nbsp; <b>Space</b> jump / handbrake &nbsp; <b>L</b> save &nbsp; <b>P</b> pause</div>
+</div>
+
+<div id="pause-screen" class="overlay">
+  <h1>PAUSED</h1>
+  <p>Port Solano waits for no one. Press P to keep driving.</p>
+</div>
+
+<div id="busted-screen" class="overlay">
+  <h1>BUSTED</h1>
+  <p>The KPD caught up with Dante. Press Enter to get back on the street.</p>
+</div>
+
+<div id="wasted-screen" class="overlay">
+  <h1>WASTED</h1>
+  <p>Dante is down — but Port Solano is not done with him. Press Enter to respawn.</p>
+</div>
+
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
